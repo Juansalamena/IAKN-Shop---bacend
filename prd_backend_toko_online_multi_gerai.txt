@@ -1,0 +1,44 @@
+Product Requirements Document (PRD): Backend Toko Online Multi-Gerai
+
+1. Ringkasan Proyek
+Pengembangan sistem backend API untuk e-commerce yang mendukung model bisnis multi-gerai/multi-cabang. Sistem ini harus mampu memisahkan otoritas dan data antara pengelola pusat (Super Admin) dan pengelola masing-masing cabang (Admin Toko), serta melayani request dari aplikasi frontend atau mobile (Customer).
+
+2. Aktor dan Hak Akses (Role-Based Access Control)
+Sistem menggunakan autentikasi berbasis token (misalnya JWT) dengan 3 role utama:
+* Super Admin: Memiliki akses penuh ke seluruh sistem. Dapat menambah, mengedit, atau menghapus gerai, mengelola akun Admin Toko, serta melihat laporan penjualan dari seluruh gerai.
+* Admin Toko (Gerai): Akses terbatas hanya pada gerai yang ditugaskan kepadanya. Dapat melakukan operasi CRUD pada produk di tokonya sendiri, memperbarui stok, dan memproses pesanan (order) yang masuk spesifik ke gerainya.
+* Customer: Pengguna akhir yang mengakses melalui frontend. Dapat melihat produk dari berbagai gerai, memasukkan barang ke keranjang, membuat pesanan, dan melacak status pengiriman.
+
+3. Kebutuhan Fungsional (Backend API Features)
+
+A. Modul Manajemen Autentikasi & Otorisasi
+* POST /api/auth/login: Autentikasi user dan generate token.
+* Middleware pengecekan role: Memastikan Admin Toko A tidak bisa mengakses atau mengubah data (produk/pesanan) milik Toko B melalui modifikasi payload atau parameter URL.
+
+B. Modul Manajemen Gerai (Khusus Super Admin)
+* POST /api/admin/stores: Registrasi gerai baru.
+* POST /api/admin/store-admins: Membuat kredensial login untuk Admin Toko dan memetakannya ke store_id tertentu.
+* GET /api/admin/stores/reports: Agregasi data transaksi seluruh gerai.
+
+C. Modul Manajemen Produk (Admin Toko & Super Admin)
+* Setiap tabel produk harus memiliki relasi store_id.
+* POST /api/store/products: Input produk baru. Wajib menyertakan nama produk, SKU, deskripsi, harga, stok, dan gambar. Backend otomatis menyematkan store_id dari sesi Admin Toko yang sedang login.
+* PUT /api/store/products/{id}: Update detail atau stok produk. Backend harus memvalidasi apakah {id} produk tersebut benar-benar milik store_id admin.
+* GET /api/products: Endpoint publik untuk Customer, mendukung filter berdasarkan gerai, kategori, atau pencarian nama.
+
+D. Modul Manajemen Pesanan (Order Management)
+* Customer: 
+  - POST /api/orders/checkout: Membuat pesanan baru. Backend harus memecah pesanan (split order) jika Customer membeli barang dari dua gerai yang berbeda dalam satu keranjang, sehingga menghasilkan dua ID pesanan (Order ID) yang berbeda untuk masing-masing gerai.
+* Admin Toko:
+  - GET /api/store/orders: Menampilkan daftar pesanan yang masuk khusus untuk gerainya.
+  - PUT /api/store/orders/{id}/status: Memperbarui status pesanan (misal: PENDING -> PROCESSED -> SHIPPED).
+* Super Admin:
+  - GET /api/admin/all-orders: Memantau seluruh pesanan lintas gerai.
+
+4. Kebutuhan Non-Fungsional
+* Isolasi Data (Multi-tenancy): Menggunakan pendekatan Single Database, Single Schema di mana pemisahan data gerai diatur sepenuhnya melalui kolom Foreign Key (store_id) di tabel-tabel transaksional (Products, Orders, Staff).
+* Integritas Data: Validasi ketat pada backend (bukan hanya di frontend) untuk mencegah Over-posting atau Insecure Direct Object Reference (IDOR).
+* Performa: Implementasi database indexing pada kolom yang sering dicari seperti store_id, category_id, dan status_pesanan.
+
+5. Rekomendasi Tech Stack
+Untuk mempercepat pengembangan arsitektur yang sangat bergantung pada relasi tabel yang kuat dan fitur routing API, framework PHP seperti Laravel (dengan Eloquent ORM) sangat cocok digunakan. Struktur migration dan seeder bawaannya akan mempermudah perancangan skema multi-gerai ini ke dalam database relasional seperti MySQL.
